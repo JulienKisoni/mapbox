@@ -1,7 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import ReactMapGL, { 
-    GeolocateControl, NavigationControl
+    GeolocateControl, NavigationControl, Marker
 } from 'react-map-gl';
+import { graphql } from 'react-apollo';
+import FontAwesome from 'react-fontawesome';
+import DeckGL, { GeoJsonLayer } from "deck.gl";
+import Geocoder from "react-map-gl-geocoder";
+
+import "react-map-gl-geocoder/dist/mapbox-gl-geocoder.css"
+import "mapbox-gl/dist/mapbox-gl.css"
+
+import { GET_PINS_QUERY } from '../graphql/queries';
+import { ADD_PIN_MUTATION } from '../graphql/mutations';
+
+const token = "pk.eyJ1IjoiemFja3R1dG8iLCJhIjoiY2s3bjl1NG81MGFjYzNrbTduYXdpdXpkdyJ9.5ZsWgaEemn4iI2LZ2pZAYw";
 
 const initialViewport = {
     longitude: -122.4376,
@@ -16,16 +28,52 @@ const initialViewport = {
   };
 
 const Map = (props) => {
+    console.log('props',props);
     const [viewport, setViewport] = useState(initialViewport);
-    const [pins, setPins] = useState([]);
-    const handleMapClick = (event) => {
-        const [longitude, latitude] = event.lngLat;
-        console.log('event', event);
+    const [layer, setLayer] = useState(null);
+    const mapRef = React.useRef();
+    const handleGeocoderViewportChange = viewport => {
+        const geocoderDefaultOverrides = { transitionDuration: 1000 };
+    
+        // return this.handleViewportChange({
+        //   ...viewport,
+        //   ...geocoderDefaultOverrides
+        // });
+        return handleMapChange({
+            ...viewport,
+            ...geocoderDefaultOverrides
+        });
+      };
+    const handleOnResult = event => {
+          const searchResultLayer = new GeoJsonLayer({
+            id: "search-result",
+            data: event.result.geometry,
+            getFillColor: [255, 0, 0, 128],
+            getRadius: 1000,
+            pointRadiusMinPixels: 10,
+            pointRadiusMaxPixels: 10
+        });
+        setLayer(searchResultLayer);
+      }
+    const handleMapClick = async event => {
+        try {
+            const [longitude, latitude] = event.lngLat;
+            console.log(longitude, latitude);
+            const res = await props.mutate({
+                variables: { latitude, longitude }
+            });
+            props.data.refetch()
+            console.log('res', res);
+        } catch(e) {
+            console.error('error', e);
+        }
+
     }
     const handleMapChange = newViewport => {
         setViewport(prevState => (
             {
                 ...prevState,
+                ...newViewport,
                 latitude: newViewport.latitude,
                 longitude: newViewport.longitude
             }
@@ -34,12 +82,13 @@ const Map = (props) => {
     return (
         <div style={{ widht: '100vw', height: '100vh'}}>
             <ReactMapGL 
+                ref={mapRef}
                 width='100%'
                 height='100%'
-                mapboxApiAccessToken="pk.eyJ1IjoiemFja3R1dG8iLCJhIjoiY2s3bjl1NG81MGFjYzNrbTduYXdpdXpkdyJ9.5ZsWgaEemn4iI2LZ2pZAYw"
+                mapboxApiAccessToken={token}
                 mapStyle='mapbox://styles/mapbox/streets-v9'
                 onViewportChange={handleMapChange}
-                onClick={handleMapClick}
+                // onClick={handleMapClick}
                 {...viewport}
             >
                 <GeolocateControl
@@ -47,19 +96,47 @@ const Map = (props) => {
                     positionOptions={{enableHighAccuracy: true}}
                     trackUserLocation={true}
                 />
+                <Geocoder 
+                    mapRef={mapRef}
+                    onResult={handleOnResult}
+                    onViewportChange={handleGeocoderViewportChange}
+                    mapboxApiAccessToken={token}
+                    position='top-left'
+                />
                 <div style={{
                         position: "absolute",
                         top: 0,
                         left: 0,
                         margin: "1em"
                     }}>
-                    <NavigationControl 
+                    {/* <NavigationControl 
                         onViewportChange={viewport=> setViewport(viewport)}
-                    />
+                    /> */}
                 </div>
+                {/* Marked Pins */}
+                {!props.data.loading && props.data.getPins.map(pin => (
+                    <Marker 
+                        key={pin.id}
+                        latitude={pin.latitude}
+                        longitude={pin.longitude}
+                        offsetLeft={-19}
+                        offsetRight={-37}
+                    >
+                        <FontAwesome 
+                            name="map-marker-alt"
+                            size='2x'
+                            style={{
+                                color: 'red'
+                            }}
+                        />
+                    </Marker>
+                ))}
             </ReactMapGL>
+            <DeckGL {...viewport} layers={[layer]} />
         </div>
     )
 }
 
-export default Map;
+export default graphql(ADD_PIN_MUTATION)(
+    graphql(GET_PINS_QUERY)(Map)
+);
