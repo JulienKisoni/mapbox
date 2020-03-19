@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import ReactMapGL, { 
     GeolocateControl, NavigationControl, Marker
 } from 'react-map-gl';
-import { graphql } from 'react-apollo';
+import { graphql, Subscription } from 'react-apollo';
 import FontAwesome from 'react-fontawesome';
 import DeckGL, { GeoJsonLayer } from "deck.gl";
 import Geocoder from "react-map-gl-geocoder";
@@ -12,6 +12,7 @@ import "mapbox-gl/dist/mapbox-gl.css"
 
 import { GET_PINS_QUERY } from '../graphql/queries';
 import { ADD_PIN_MUTATION } from '../graphql/mutations';
+import { PIN_ADDED_SUBSCRIPTION } from '../graphql/subscriptions';
 
 const token = "pk.eyJ1IjoiemFja3R1dG8iLCJhIjoiY2s3bjl1NG81MGFjYzNrbTduYXdpdXpkdyJ9.5ZsWgaEemn4iI2LZ2pZAYw";
 
@@ -88,7 +89,7 @@ const Map = (props) => {
                 mapboxApiAccessToken={token}
                 mapStyle='mapbox://styles/mapbox/streets-v9'
                 onViewportChange={handleMapChange}
-                // onClick={handleMapClick}
+                onClick={handleMapClick}
                 {...viewport}
             >
                 <GeolocateControl
@@ -96,22 +97,22 @@ const Map = (props) => {
                     positionOptions={{enableHighAccuracy: true}}
                     trackUserLocation={true}
                 />
-                <Geocoder 
+                {/* <Geocoder 
                     mapRef={mapRef}
                     onResult={handleOnResult}
                     onViewportChange={handleGeocoderViewportChange}
                     mapboxApiAccessToken={token}
                     position='top-left'
-                />
+                /> */}
                 <div style={{
                         position: "absolute",
                         top: 0,
                         left: 0,
                         margin: "1em"
                     }}>
-                    {/* <NavigationControl 
+                    <NavigationControl 
                         onViewportChange={viewport=> setViewport(viewport)}
-                    /> */}
+                    />
                 </div>
                 {/* Marked Pins */}
                 {!props.data.loading && props.data.getPins.map(pin => (
@@ -132,7 +133,12 @@ const Map = (props) => {
                     </Marker>
                 ))}
             </ReactMapGL>
-            <DeckGL {...viewport} layers={[layer]} />
+            {/* <DeckGL {...viewport} layers={[layer]} /> */}
+            {/* Subscription */}
+            <Subscription 
+                subscription={PIN_ADDED_SUBSCRIPTION}
+                onSubscriptionData={({subscriptionData}) => console.log('sub', { subscriptionData})}
+            />
         </div>
     )
 }
